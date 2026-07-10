@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { signup } from "../actions";
-import { Alert } from "../../components/ui";
- 
+import { signup } from "@/app/auth/actions";
+import { Alert } from "../components/ui";
+
 function getFriendlyAuthError(value: string | string[] | undefined) {
   const message = Array.isArray(value) ? value[0] : value;
 
@@ -20,7 +20,7 @@ function getFriendlyAuthError(value: string | string[] | undefined) {
   return "Une erreur est survenue. Vérifie tes informations puis réessaie.";
 }
 
-export default async function SignupPage({
+export default async function RegisterPage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string | string[] }>;
@@ -38,7 +38,7 @@ export default async function SignupPage({
         </div>
 
         {errorMessage ? <Alert>{errorMessage}</Alert> : null}
- 
+
         <div className="form-group">
           <label className="label" htmlFor="email">
             Email
@@ -52,7 +52,7 @@ export default async function SignupPage({
             required
           />
         </div>
- 
+
         <div className="form-group">
           <label className="label" htmlFor="password">
             Mot de passe
@@ -68,7 +68,7 @@ export default async function SignupPage({
           />
           <p className="field-help">Utilise au moins 6 caractères.</p>
         </div>
- 
+
         <button className="button" type="submit">
           S&apos;inscrire
         </button>

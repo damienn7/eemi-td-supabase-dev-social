@@ -2,6 +2,7 @@
  
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { EmptyState, formatDateTime } from "./ui";
  
 type Post = {
   id: string;
@@ -35,11 +36,22 @@ export function FeedLive({ initialPosts }: { initialPosts: Post[] }) {
   }, []);
  
   return (
-    <ul>
+    <ul className="post-list" aria-live="polite">
+      {posts.length === 0 ? (
+        <li>
+          <EmptyState title="Aucun post en direct">
+            Les prochaines publications apparaîtront ici automatiquement.
+          </EmptyState>
+        </li>
+      ) : null}
       {posts.map((post) => (
         <li key={post.id}>
-          <p>{post.content}</p>
-          <time>{new Date(post.created_at).toLocaleString("fr-FR")}</time>
+          <article className="post-card">
+            <p className="post-content">{post.content}</p>
+            <p className="meta">
+              <time dateTime={post.created_at}>{formatDateTime(post.created_at)}</time>
+            </p>
+          </article>
         </li>
       ))}
     </ul>

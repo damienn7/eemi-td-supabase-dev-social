@@ -1,133 +1,238 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { PostForm } from "./posts/post-form";
-import { toggleLike } from "./actions/post";
+import { LikeForm } from "./components/like-form";
+import { Alert, Avatar, EmptyState, formatDateTime } from "./components/ui";
  
 type PostWithRelations = {
   id: string;
+  author_id: string;
   content: string;
   created_at: string;
-  author?: {
-    username?: string | null;
-    avatar_url?: string | null;
+  author: {
+    id: string;
+    username: string | null;
+    avatar_url: string | null;
+  } | null;
+  likes: {
+    post_id: string;
+    user_id: string;
   }[];
-  likes?: { user_id: string }[];
-  comments?: { id: string }[];
+  comments: {
+    id: string;
+    post_id: string;
+  }[];
 };
  
 export default async function HomePage() {
   const supabase = await createClient();
- 
+
   const {
     data: { user },
+    error: userError,
   } = await supabase.auth.getUser();
- 
+
+  if (userError || !user) {
+    redirect("/login?redirectTo=/");
+  }
+
+  const loadFeedWithoutEmbeds = async (): Promise<{
+    posts: PostWithRelations[];
+    error: unknown;
+  }> => {
+    const { data: fallbackPosts, error: postsError } = await supabase
+      .from("posts")
+      .select("id, author_id, content, created_at")
+      .order("created_at", { ascending: false });
+
+    if (postsError) {
+      console.error("Erreur chargement feed fallback posts:", postsError);
+      return { posts: [], error: postsError };
+    }
+
+    const postRows = (fallbackPosts ?? []) as Pick<
+      PostWithRelations,
+      "id" | "author_id" | "content" | "created_at"
+    >[];
+
+    if (postRows.length === 0) {
+      return { posts: [], error: null };
+    }
+
+    const authorIds = [...new Set(postRows.map((post) => post.author_id))];
+    const postIds = postRows.map((post) => post.id);
+
+    const { data: profiles, error: profilesError } = await supabase
+      .from("profiles")
+      .select("id, username, avatar_url")
+      .in("id", authorIds);
+
+    if (profilesError) {
+      console.error("Erreur chargement feed fallback profiles:", profilesError);
+      return { posts: [], error: profilesError };
+    }
+
+    const { data: likes, error: likesError } = await supabase
+      .from("likes")
+      .select("post_id, user_id")
+      .in("post_id", postIds);
+
+    if (likesError) {
+      console.error("Erreur chargement feed fallback likes:", likesError);
+      return { posts: [], error: likesError };
+    }
+
+    const { data: comments, error: commentsError } = await supabase
+      .from("comments")
+      .select("id, post_id")
+      .in("post_id", postIds);
+
+    if (commentsError) {
+      console.error("Erreur chargement feed fallback comments:", commentsError);
+      return { posts: [], error: commentsError };
+    }
+
+    const profilesById = new Map(
+      ((profiles ?? []) as NonNullable<PostWithRelations["author"]>[]).map((profile) => [
+        profile.id,
+        profile,
+      ])
+    );
+
+    const likesByPostId = new Map<string, PostWithRelations["likes"]>();
+    for (const like of (likes ?? []) as PostWithRelations["likes"]) {
+      const postLikes = likesByPostId.get(like.post_id) ?? [];
+      postLikes.push(like);
+      likesByPostId.set(like.post_id, postLikes);
+    }
+
+    const commentsByPostId = new Map<string, PostWithRelations["comments"]>();
+    for (const comment of (comments ?? []) as PostWithRelations["comments"]) {
+      const postComments = commentsByPostId.get(comment.post_id) ?? [];
+      postComments.push(comment);
+      commentsByPostId.set(comment.post_id, postComments);
+    }
+
+    return {
+      posts: postRows.map((post) => ({
+        ...post,
+        author: profilesById.get(post.author_id) ?? null,
+        likes: likesByPostId.get(post.id) ?? [],
+        comments: commentsByPostId.get(post.id) ?? [],
+      })),
+      error: null,
+    };
+  };
+
   const { data: posts, error } = await supabase
     .from("posts")
     .select(`
       id,
+      author_id,
       content,
       created_at,
-      author:profiles(username, avatar_url),
-      likes(user_id),
-      comments(id)
+      author:profiles!posts_author_id_fkey(
+        id,
+        username,
+        avatar_url
+      ),
+      likes(
+        post_id,
+        user_id
+      ),
+      comments(
+        id,
+        post_id
+      )
     `)
     .order("created_at", { ascending: false });
- 
+
+  let typedPosts = (posts ?? []) as unknown as PostWithRelations[];
+
   if (error) {
-    return <p>Impossible de charger le fil d&apos;actualité : {error.message}</p>;
+    console.error("Erreur chargement feed avec jointures explicites:", error);
+    const fallbackResult = await loadFeedWithoutEmbeds();
+
+    if (fallbackResult.error) {
+      return (
+        <main id="contenu-principal" className="page">
+          <header className="page-header">
+            <p className="eyebrow">Mini réseau social</p>
+            <h1>DevSocial</h1>
+            <p className="lead">Publie, lis et échange avec la communauté.</p>
+          </header>
+          <Alert>Impossible de charger le fil d&apos;actualité pour le moment.</Alert>
+        </main>
+      );
+    }
+
+    typedPosts = fallbackResult.posts;
   }
  
   return (
-    <main style={{ padding: 16 }}>
-      <header style={{ marginBottom: 24 }}>
+    <main id="contenu-principal" className="page">
+      <header className="page-header">
+        <p className="eyebrow">Mini réseau social</p>
         <h1>DevSocial</h1>
-        <p>Bienvenue sur le mini réseau social.</p>
+        <p className="lead">
+          Un fil clair pour publier, aimer et suivre les conversations de la communauté.
+        </p>
       </header>
  
-      {user ? (
-        <section style={{ marginBottom: 24 }}>
-          <h2>Publier un post</h2>
-          <PostForm />
-        </section>
-      ) : (
-        <section style={{ marginBottom: 24 }}>
-          <p>
-            <Link href="/auth/login">Connecte-toi</Link> pour publier, commenter et liker.
-          </p>
-        </section>
-      )}
+      <section className="section-card stack" aria-labelledby="create-post-title">
+        <h2 id="create-post-title">Publier un post</h2>
+        <PostForm />
+      </section>
  
-      <section>
-        <h2>Fil d&apos;actualité</h2>
-        {posts?.length === 0 ? (
-          <p>Aucun post pour l&apos;instant.</p>
+      <section className="stack" aria-labelledby="feed-title">
+        <div className="split">
+          <div className="stack stack--tight">
+            <h2 id="feed-title">Fil d&apos;actualité</h2>
+            <p className="muted">Les publications les plus récentes apparaissent en premier.</p>
+          </div>
+          <span className="badge">
+            {typedPosts.length} post{typedPosts.length > 1 ? "s" : ""}
+          </span>
+        </div>
+        {typedPosts.length === 0 ? (
+          <EmptyState title="Aucun post pour l&apos;instant">
+            Publie le premier message pour lancer la conversation.
+          </EmptyState>
         ) : (
-          <ul style={{ listStyle: "none", padding: 0, margin: 0, maxWidth: 780 }}>
-            {posts.map((post: PostWithRelations) => {
-              const likesCount = post.likes?.length ?? 0;
-              const commentsCount = post.comments?.length ?? 0;
-              const likedByMe = user
-                ? post.likes?.some((like) => like.user_id === user.id)
-                : false;
+          <ul className="post-list">
+            {typedPosts.map((post: PostWithRelations) => {
+              const likesCount = post.likes.length;
+              const commentsCount = post.comments.length;
+              const likedByMe = post.likes.some((like) => like.user_id === user.id);
+              const authorName = post.author?.username ?? "Utilisateur inconnu";
+              const avatarUrl = post.author?.avatar_url;
  
               return (
-                <li
-                  key={post.id}
-                  style={{
-                    border: "1px solid #ddd",
-                    borderRadius: 16,
-                    padding: 18,
-                    marginBottom: 16,
-                  }}
-                >
-                  <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
-                    <div
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: "50%",
-                        overflow: "hidden",
-                        background: "#f0f0f0",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      {post.author?.[0]?.avatar_url ? (
-                        <img
-                          src={post.author[0].avatar_url!}
-                          alt={`Avatar de ${post.author[0]?.username ?? "l'auteur"}`}
-                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                        />
-                      ) : (
-                        <span style={{ color: "#666", fontSize: 12 }}>Aucune image</span>
-                      )}
-                    </div>
-                          <div>
-                      <strong>{post.author?.[0]?.username ?? "Auteur inconnu"}</strong>
-                      <div style={{ fontSize: 12, color: "#666" }}>
-                        {new Date(post.created_at).toLocaleString("fr-FR")}
+                <li key={post.id}>
+                  <article className="post-card" aria-labelledby={`post-${post.id}-author`}>
+                    <div className="post-header">
+                      <Avatar src={avatarUrl} name={authorName} />
+                      <div>
+                        <h3 id={`post-${post.id}-author`}>{authorName}</h3>
+                        <p className="meta">
+                          <time dateTime={post.created_at}>{formatDateTime(post.created_at)}</time>
+                        </p>
                       </div>
                     </div>
-                  </div>
  
-                  <p style={{ whiteSpace: "pre-wrap", marginBottom: 16 }}>{post.content}</p>
+                    <p className="post-content">{post.content}</p>
  
-                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-                    {user ? (
-                      <form action={toggleLike}>
-                        <input type="hidden" name="postId" value={post.id} />
-                        <button type="submit">
-                          {likedByMe ? "Je n'aime plus" : "J'aime"} ({likesCount})
-                        </button>
-                      </form>
-                    ) : (
-                      <Link href="/auth/login">Connecte-toi pour liker</Link>
-                    )}
-                    <span>{commentsCount} commentaire{commentsCount > 1 ? "s" : ""}</span>
-                    <Link href={`/post/${post.id}`}>Voir le post</Link>
-                  </div>
+                    <div className="post-actions" aria-label="Actions du post">
+                      <LikeForm postId={post.id} likedByMe={likedByMe} likesCount={likesCount} />
+                      <span className="badge">
+                        {commentsCount} commentaire{commentsCount > 1 ? "s" : ""}
+                      </span>
+                      <Link className="button button--secondary button--compact" href={`/post/${post.id}`}>
+                        Voir le post
+                      </Link>
+                    </div>
+                  </article>
                 </li>
               );
             })}

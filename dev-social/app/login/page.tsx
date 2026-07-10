@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { login } from "../actions";
-import { Alert } from "../../components/ui";
- 
+import { login } from "@/app/auth/actions";
+import { Alert } from "../components/ui";
+
 function getSafeRedirectPath(value: string | string[] | undefined) {
   const redirectTo = Array.isArray(value) ? value[0] : value;
 
@@ -64,7 +64,7 @@ export default async function LoginPage({
 
         {errorMessage ? <Alert>{errorMessage}</Alert> : null}
         {statusMessage ? <Alert tone="success">{statusMessage}</Alert> : null}
- 
+
         <div className="form-group">
           <label className="label" htmlFor="email">
             Email
@@ -78,7 +78,7 @@ export default async function LoginPage({
             required
           />
         </div>
- 
+
         <div className="form-group">
           <label className="label" htmlFor="password">
             Mot de passe
@@ -92,7 +92,7 @@ export default async function LoginPage({
             required
           />
         </div>
- 
+
         <button className="button" type="submit">
           Se connecter
         </button>

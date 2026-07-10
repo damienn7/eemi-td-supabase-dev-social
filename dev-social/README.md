@@ -1,36 +1,96 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DevSocial
 
-## Getting Started
+Mini réseau social développé avec Next.js App Router, TypeScript et Supabase.
 
-First, run the development server:
+## Membres
+
+- Nom 1
+- Nom 2
+
+> Remplacez ces placeholders par vos noms réels avant de rendre le projet.
+
+## Installation
+
+```bash
+npm install
+```
+
+## Variables d'environnement
+
+Créez un fichier `.env.local` dans le dossier `dev-social` avec les variables suivantes :
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+```
+
+Ne mettez jamais de clé privée ou de service role key dans le dépôt.
+
+## Commandes utiles
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run build
+npm run lint
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Structure du projet
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `app/` : pages et routes Next.js App Router
+- `app/auth/` : pages de connexion et d'inscription
+- `app/posts/` : formulaire et actions de gestion des posts
+- `app/profile/` : page profil et upload avatar
+- `app/post/[id]/` : page détail d'un post avec commentaires et like
+- `app/components/` : composants partagés
+- `utils/supabase/client.ts` : client Supabase pour le navigateur
+- `utils/supabase/server.ts` : client Supabase pour le serveur
+- `sql/0001_dev_social_comments_likes_avatars_rls.sql` : migration SQL de base
+- `sql/0002_private_app_rls.sql` : migration RLS pour rendre DevSocial privé
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Routes principales
 
-## Learn More
+- `/` : fil d'actualité privé, posts, likes, commentaires
+- `/auth/login` : connexion
+- `/auth/signup` : inscription
+- `/profile` : profil utilisateur, avatar, suppression avatar
+- `/post/[id]` : détail du post, commentaires, like
+- `/posts` : gestion des posts
+- `/feed` : fil (temps réel si activé)
 
-To learn more about Next.js, take a look at the following resources:
+Les routes `/`, `/feed`, `/posts`, `/post/*` et `/profile` sont privées. Un visiteur non connecté est redirigé vers `/login?redirectTo=...`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Supabase
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Créez un projet Supabase.
+2. Ajoutez les variables d'environnement dans `.env.local`.
+3. Appliquez la migration SQL :
+   - `sql/0001_dev_social_comments_likes_avatars_rls.sql`
+   - `sql/0002_private_app_rls.sql`
+4. Vérifiez que les tables existent : `profiles`, `posts`, `comments`, `likes`.
+5. Créez un bucket Storage `avatars` si nécessaire.
 
-## Deploy on Vercel
+### Sécurité et RLS
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `profiles`, `posts`, `comments`, `likes` doivent avoir RLS activé.
+- Lecture réservée aux utilisateurs authentifiés.
+- Insertion uniquement par l'utilisateur propriétaire.
+- Update/delete uniquement par le propriétaire.
+- Les anciennes policies publiques doivent être supprimées par `sql/0002_private_app_rls.sql`.
+- Ne pas désactiver RLS dans le code.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Stockage des avatars
+
+- Bucket : `avatars`
+- Chemin stocké : `${user.id}/avatar.png`
+- `profiles.avatar_url` contient l'URL publique du fichier
+- Upload et suppression depuis `/profile`
+
+## Notes importantes
+
+- Le projet utilise `@supabase/ssr` pour gérer la session côté serveur.
+- Les lectures initiales sont en Server Components, les mutations en Server Actions.
+- La page `app/post/[id]` gère les commentaires via une action serveur et revalide le contenu.
+
+## Partage Supabase
+
+Si l'enseignant doit accéder au projet Supabase, partagez le projet via l'interface Supabase avec son e-mail.

@@ -2,42 +2,97 @@
  
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
+
+type PostActionResult = {
+  error?: string;
+  success?: true;
+};
  
-export async function createPost(formData: FormData) {
-  const content = formData.get("content");
- 
-  if (typeof content !== "string" || content.trim() === "") {
-    throw new Error("Le contenu du post est vide.");
-  }
- 
+export async function createPost(formData: FormData): Promise<PostActionResult> {
   const supabase = await createClient();
- 
-  // On récupère l'utilisateur connecté pour renseigner author_id.
-  // (L'auth est détaillée au chapitre 6 ; ici on suppose une session.)
   const {
     data: { user },
+    error: userError,
   } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return {
+      error: "Vous devez être connecté pour publier un post.",
+    };
+  }
+
+  const content = String(formData.get("content") ?? "").trim();
  
-  if (!user) throw new Error("Tu dois être connecté pour publier.");
+  if (!content) {
+    return {
+      error: "Le contenu du post ne peut pas être vide.",
+    };
+  }
  
   const { error } = await supabase
     .from("posts")
-    .insert({ author_id: user.id, content: content.trim() });
+    .insert({ author_id: user.id, content });
  
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error("Erreur création post:", error);
+    return {
+      error: "Impossible de publier le post.",
+    };
+  }
  
-  // Rafraîchit le Server Component de la page : la liste se met à jour.
+  revalidatePath("/");
   revalidatePath("/posts");
+
+  return {
+    success: true,
+  };
 }
  
-export async function deletePost(formData: FormData) {
+export async function deletePost(formData: FormData): Promise<PostActionResult> {
   const id = formData.get("id");
-  if (typeof id !== "string") throw new Error("Identifiant manquant.");
+  if (typeof id !== "string" || id.trim() === "") {
+    return {
+      error: "Identifiant de post invalide.",
+    };
+  }
  
   const supabase = await createClient();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return {
+      error: "Vous devez être connecté pour supprimer un post.",
+    };
+  }
  
-  const { error } = await supabase.from("posts").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  const { data: deletedPost, error } = await supabase
+    .from("posts")
+    .delete()
+    .eq("id", id)
+    .eq("author_id", user.id)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Erreur suppression post:", error);
+    return {
+      error: "Impossible de supprimer ce post.",
+    };
+  }
+
+  if (!deletedPost) {
+    return {
+      error: "Vous ne pouvez supprimer que vos propres posts.",
+    };
+  }
  
+  revalidatePath("/");
   revalidatePath("/posts");
+
+  return {
+    success: true,
+  };
 }

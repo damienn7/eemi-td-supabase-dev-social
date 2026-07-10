@@ -1,9 +1,9 @@
 "use client";
- 
+
 import { useId, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { Alert } from "../components/ui";
-import { createPost } from "./actions";
+import { Alert } from "../../components/ui";
+import { createComment } from "./actions";
 
 type FormState = {
   error?: string;
@@ -15,24 +15,23 @@ function SubmitButton() {
 
   return (
     <button className="button" type="submit" disabled={pending}>
-      {pending ? "Publication en cours..." : "Publier"}
+      {pending ? "Envoi en cours..." : "Publier le commentaire"}
     </button>
   );
 }
- 
-export function PostForm() {
+
+export function CommentForm({ postId }: { postId: string }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [state, setState] = useState<FormState>({});
   const contentId = useId();
   const errorId = `${contentId}-error`;
-  const successId = `${contentId}-success`;
- 
+
   return (
     <form
       className="form"
       ref={formRef}
       action={async (formData) => {
-        const result = await createPost(formData);
+        const result = await createComment(formData);
         setState(result);
 
         if (result.success) {
@@ -40,30 +39,26 @@ export function PostForm() {
         }
       }}
     >
+      <input type="hidden" name="postId" value={postId} />
       <div className="form-group">
         <label className="label" htmlFor={contentId}>
-          Contenu du post
+          Ton commentaire
         </label>
         <textarea
           id={contentId}
           className="textarea"
           name="content"
-          required
           rows={4}
+          required
           aria-describedby={state.error ? errorId : undefined}
         />
       </div>
-
       {state.error ? (
         <Alert id={errorId} tone="error">
           {state.error}
         </Alert>
       ) : null}
-      {state.success ? (
-        <Alert id={successId} tone="success">
-          Post publié.
-        </Alert>
-      ) : null}
+      {state.success ? <Alert tone="success">Commentaire publié.</Alert> : null}
       <div className="form-actions">
         <SubmitButton />
       </div>

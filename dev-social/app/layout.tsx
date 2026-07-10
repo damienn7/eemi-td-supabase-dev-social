@@ -1,7 +1,14 @@
 import { ReactNode } from "react";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
+import { ActiveNavLink } from "./components/ActiveNavLink";
 import { SignoutButton } from "./components/SignoutButton";
+import "./globals.css";
+
+export const metadata = {
+  title: "DevSocial",
+  description: "Mini réseau social pour publier, aimer et commenter des posts.",
+};
  
 export default async function AppLayout({
   children,
@@ -16,23 +23,33 @@ export default async function AppLayout({
   return (
     <html lang="fr">
       <body>
-        <header style={{ padding: 16, borderBottom: "1px solid #ddd", marginBottom: 24 }}>
-          <nav style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
-            <Link href="/">Accueil</Link>
-            <Link href="/feed">Fil</Link>
-            <Link href="/posts">Posts</Link>
-            <Link href="/profile">Profil</Link>
-            {user ? (
-              <SignoutButton />
-            ) : (
-              <>
-                <Link href="/auth/login">Connexion</Link>
-                <Link href="/auth/signup">Inscription</Link>
-              </>
-            )}
-          </nav>
+        <a className="skip-link" href="#contenu-principal">
+          Aller au contenu principal
+        </a>
+        <header className="site-header">
+          <div className="site-header__inner">
+            <Link className="brand" href={user ? "/" : "/login"}>
+              DevSocial
+            </Link>
+            <nav className="main-nav" aria-label="Navigation principale">
+              {user ? (
+                <>
+                  <ActiveNavLink href="/">Accueil</ActiveNavLink>
+                  <ActiveNavLink href="/feed">Fil</ActiveNavLink>
+                  <ActiveNavLink href="/posts">Posts</ActiveNavLink>
+                  <ActiveNavLink href="/profile">Profil</ActiveNavLink>
+                  <SignoutButton />
+                </>
+              ) : (
+                <>
+                  <ActiveNavLink href="/login">Connexion</ActiveNavLink>
+                  <ActiveNavLink href="/register">Inscription</ActiveNavLink>
+                </>
+              )}
+            </nav>
+          </div>
         </header>
-        {children}
+        <div className="app-shell">{children}</div>
       </body>
     </html>
   );
